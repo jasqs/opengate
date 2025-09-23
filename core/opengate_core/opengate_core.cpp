@@ -346,6 +346,8 @@ void init_GateSimulationStatisticsActor(py::module &);
 
 void init_GatePhaseSpaceActor(py::module &);
 
+void init_GateNanodosimetryActor(py::module &m);
+
 // biasing
 void init_GateBOptrBremSplittingActor(py::module &m);
 
@@ -421,7 +423,8 @@ void init_GateVolumeVoxelizer(py::module &);
 
 void init_GateImageBox(py::module &m);
 
-PYBIND11_MODULE(opengate_core, m) {
+PYBIND11_MODULE(opengate_core, m)
+{
 
   init_G4ThreeVector(m);
   init_G4AffineTransform(m);
@@ -610,6 +613,7 @@ PYBIND11_MODULE(opengate_core, m) {
   init_GateBeamQualityActor(m);
   init_GateEmCalculatorActor(m);
   init_GateSimulationStatisticsActor(m);
+  init_GateNanodosimetryActor(m);
 
   init_GateBOptrBremSplittingActor(m);
   init_GateGammaFreeFlightOptrActor(m);

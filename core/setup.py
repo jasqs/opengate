@@ -1,3 +1,6 @@
+from distutils.version import LooseVersion
+from setuptools.command.build_ext import build_ext
+from setuptools import Extension, find_packages
 import os
 import re
 import sys
@@ -28,10 +31,6 @@ def get_base_dir() -> Path:
 
 with open("../VERSION", "r") as fh:
     version = fh.read()[:-1]
-
-from setuptools import Extension, find_packages
-from setuptools.command.build_ext import build_ext
-from distutils.version import LooseVersion
 
 
 class CMakeExtension(Extension):
@@ -94,7 +93,8 @@ class CMakeBuild(build_ext):
         else:
             cmake_args += ['-DCMAKE_CXX_FLAGS="-Wno-pedantic"']
             cmake_args += ["-DCMAKE_BUILD_TYPE=" + cfg]
-            build_args += ["--", "-j4"]
+            build_args += ["--", "-j15"]
+            # build_args += ["-flto=auto"]
 
         env = os.environ.copy()
 

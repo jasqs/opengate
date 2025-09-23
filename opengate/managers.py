@@ -1,3 +1,61 @@
+from .actors.digitizers import (
+    DigitizerAdderActor,
+    DigitizerBlurringActor,
+    DigitizerSpatialBlurringActor,
+    DigitizerReadoutActor,
+    DigitizerEfficiencyActor,
+    DigitizerProjectionActor,
+    DigitizerEnergyWindowsActor,
+    DigitizerHitsCollectionActor,
+    PhaseSpaceActor,
+    DigiAttributeProcessDefinedStepInVolumeActor,
+)
+from .actors.biasingactors import (
+    GenericBiasingActorBase,
+    BremsstrahlungSplittingActor,
+    GammaFreeFlightActor,
+    ScatterSplittingFreeFlightActor,
+)
+from .actors.miscactors import (
+    SimulationStatisticsActor,
+    KillActor,
+    KillAccordingProcessesActor,
+    AttenuationImageActor,
+)
+from .actors.arfactors import ARFActor, ARFTrainingDatasetActor
+from .actors.dynamicactors import DynamicGeometryActor
+from .actors.doseactors import (
+    DoseActor,
+    TLEDoseActor,
+    LETActor,
+    FluenceActor,
+    ProductionAndStoppingActor,
+    RBEActor,
+    REActor,
+    BeamQualityActor,
+    EmCalculatorActor,
+    NanodosimetryActor,
+)
+from .actors.base import ActorBase
+from .actors.filters import get_filter_class, FilterBase, filter_classes
+from .geometry.volumes import (
+    VolumeBase,
+    BoxVolume,
+    SphereVolume,
+    EllipsoidVolume,
+    TrapVolume,
+    ImageVolume,
+    TubsVolume,
+    PolyhedraVolume,
+    HexagonVolume,
+    TesselatedVolume,
+    ConsVolume,
+    TrdVolume,
+    BooleanVolume,
+    RepeatParametrisedVolume,
+    ParallelWorldVolume,
+    VolumeTreeRoot,
+)
 import copy
 from typing import Optional, List, Union
 from box import Box
@@ -56,65 +114,6 @@ source_types = {
     "TreatmentPlanPBSource": TreatmentPlanPBSource,
 }
 
-from .geometry.volumes import (
-    VolumeBase,
-    BoxVolume,
-    SphereVolume,
-    EllipsoidVolume,
-    TrapVolume,
-    ImageVolume,
-    TubsVolume,
-    PolyhedraVolume,
-    HexagonVolume,
-    TesselatedVolume,
-    ConsVolume,
-    TrdVolume,
-    BooleanVolume,
-    RepeatParametrisedVolume,
-    ParallelWorldVolume,
-    VolumeTreeRoot,
-)
-from .actors.filters import get_filter_class, FilterBase, filter_classes
-from .actors.base import ActorBase
-
-from .actors.doseactors import (
-    DoseActor,
-    TLEDoseActor,
-    LETActor,
-    FluenceActor,
-    ProductionAndStoppingActor,
-    RBEActor,
-    REActor,
-    BeamQualityActor,
-    EmCalculatorActor,
-)
-
-from .actors.dynamicactors import DynamicGeometryActor
-from .actors.arfactors import ARFActor, ARFTrainingDatasetActor
-from .actors.miscactors import (
-    SimulationStatisticsActor,
-    KillActor,
-    KillAccordingProcessesActor,
-    AttenuationImageActor,
-)
-from .actors.biasingactors import (
-    GenericBiasingActorBase,
-    BremsstrahlungSplittingActor,
-    GammaFreeFlightActor,
-    ScatterSplittingFreeFlightActor,
-)
-from .actors.digitizers import (
-    DigitizerAdderActor,
-    DigitizerBlurringActor,
-    DigitizerSpatialBlurringActor,
-    DigitizerReadoutActor,
-    DigitizerEfficiencyActor,
-    DigitizerProjectionActor,
-    DigitizerEnergyWindowsActor,
-    DigitizerHitsCollectionActor,
-    PhaseSpaceActor,
-    DigiAttributeProcessDefinedStepInVolumeActor,
-)
 
 particle_names_Gate_to_G4 = {
     "gamma": "gamma",
@@ -135,6 +134,7 @@ actor_types = {
     "BeamQualityActor": BeamQualityActor,
     "EmCalculatorActor": EmCalculatorActor,
     "FluenceActor": FluenceActor,
+    "NanodosimetryActor": NanodosimetryActor,
     # misc
     "AttenuationImageActor": AttenuationImageActor,
     "SimulationStatisticsActor": SimulationStatisticsActor,

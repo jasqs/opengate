@@ -1131,7 +1131,7 @@ class BeamQualityActor(VoxelDepositActor, g4.GateBeamQualityActor):
         self.ZMaxTable = max(fragments)
         if len(v_table) != 3 * len(fragments):
             raise ValueError(
-                f"Error: {len(v_table) = } and {len(fragments) = } are not equal."
+                f"Error: {len(v_table)=} and {len(fragments)=} are not equal."
             )
         if self.energy_per_nucleon:
             for i in range(1, len(v_table), 3):
@@ -1667,9 +1667,7 @@ class FluenceActor(VoxelDepositActor, g4.GateFluenceActor):
     def EndOfRunActionMasterThread(self, run_index):
         self.fetch_from_cpp_image("fluence", run_index, self.cpp_fluence_image)
         self._update_output_coordinate_system("fluence", run_index)
-        self.user_output.fluence.store_meta_data(
-            run_index, number_of_samples=self.NbOfEvent
-        )
+        self.user_output.fluence.store_meta_data(run_index, number_of_samples=self.NbOfEvent)
         VoxelDepositActor.EndOfRunActionMasterThread(self, run_index)
         return 0
 
@@ -1742,6 +1740,105 @@ class EmCalculatorActor(ActorBase, g4.GateEmCalculatorActor):
         self.InitializeCpp()
 
 
+class NanodosimetryActor(VoxelDepositActor, g4.GateNanodosimetryActor):
+    """This actor scores the Linear Energy Transfer (LET) on a voxel grid in the volume to which the actor is attached. Note that the LET Actor puts a virtual grid on the volume it is attached to. Any changes on the LET Actor will not influence the geometry/material or physics of the particle tranpsort simulation."""
+
+    # hints for IDE
+    averaging_method: str
+    score_in: str
+
+    user_info_defaults = {
+        "IDp": (
+            "F5",
+            {
+                "doc": "???",
+                "allowed_values": ("F5"),
+            },
+        ),
+        "database": (
+            "??",
+            {
+                "doc": "???",
+                "setter_hook": "??",
+            },
+        ),
+    }
+
+    user_output_config = {
+        "nanodosimetry": {
+            "actor_output_class": ActorOutputQuotientMeanImage,
+            "interfaces": {
+                "clusterdose": {
+                    "interface_class": UserInterfaceToActorOutputImage,
+                    "active": True,
+                    "write_to_disk": False,
+                },
+                "fluence": {
+                    "interface_class": UserInterfaceToActorOutputImage,
+                    "active": True,
+                    "write_to_disk": True,
+                },
+                "Ip": {
+                    "interface_class": UserInterfaceToActorOutputImage,
+                    "write_to_disk": False,
+                    "active": True,
+                    # "suffix": None,
+                },
+            },
+        },
+    }
+
+    def __init__(self, *args, **kwargs):
+        VoxelDepositActor.__init__(self, *args, **kwargs)
+        self.__initcpp__()
+
+    def __initcpp__(self):
+        g4.GateNanodosimetryActor.__init__(self, self.user_info)
+        self.AddActions(
+            {
+                "BeginOfRunActionMasterThread",
+                "BeginOfEventAction",
+                "SteppingAction",
+            }
+        )
+
+    def initialize(self):
+        """
+        At the start of the run, the image is centered according to the coordinate system of
+        the attached volume. This function computes the correct origin = center + translation.
+        Note that there is a half-pixel shift to align according to the center of the pixel,
+        like in ITK.
+        """
+        VoxelDepositActor.initialize(self)
+
+        self.check_user_input()
+
+        self.InitializeUserInfo(self.user_info)
+        # Set the physical volume name on the C++ side
+        self.SetPhysicalVolumeName(self.get_physical_volume_name())
+        self.InitializeCpp()
+
+    def BeginOfRunActionMasterThread(self, run_index):
+        self.prepare_output_for_run("nanodosimetry", run_index)
+        # self.prepare_output_for_run("let_numerator", run_index)
+        # self.prepare_output_for_run("let_denominator", run_index)
+
+        self.push_to_cpp_image("nanodosimetry", run_index, self.cpp_fluence_image)
+        g4.GateNanodosimetryActor.BeginOfRunActionMasterThread(self, run_index)
+
+    def EndOfRunActionMasterThread(self, run_index):
+        self.fetch_from_cpp_image("fluence", run_index, self.cpp_fluence_image)
+        self._update_output_coordinate_system("fluence", run_index)
+        self.user_output.fluence.store_meta_data(run_index, number_of_samples=self.NbOfEvent)
+
+        VoxelDepositActor.EndOfRunActionMasterThread(self, run_index)
+        return 0
+
+    def EndSimulationAction(self):
+        g4.GateNanodosimetryActor.EndSimulationAction(self)
+        VoxelDepositActor.EndSimulationAction(self)
+
+
 process_cls(VoxelDepositActor)
 process_cls(DoseActor)
 process_cls(TLEDoseActor)
@@ -1752,3 +1849,4 @@ process_cls(BeamQualityActor)
 process_cls(FluenceActor)
 process_cls(ProductionAndStoppingActor)
 process_cls(EmCalculatorActor)
+process_cls(NanodosimetryActor)

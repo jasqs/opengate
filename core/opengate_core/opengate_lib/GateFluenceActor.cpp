@@ -21,21 +21,23 @@
 G4Mutex SetPixelFluenceMutex = G4MUTEX_INITIALIZER;
 G4Mutex SetNbEventMutexFluence = G4MUTEX_INITIALIZER;
 
-GateFluenceActor::GateFluenceActor(py::dict &user_info)
-    : GateVActor(user_info, true) {
+GateFluenceActor::GateFluenceActor(py::dict &user_info) : GateVActor(user_info, true)
+{
 
   // Action for this actor: during stepping
   fActions.insert("SteppingAction");
   fActions.insert("BeginOfRunAction");
 }
 
-void GateFluenceActor::InitializeUserInfo(py::dict &user_info) {
+void GateFluenceActor::InitializeUserInfo(py::dict &user_info)
+{
   // IMPORTANT: call the base class method
   GateVActor::InitializeUserInfo(user_info);
   fTranslation = DictGetG4ThreeVector(user_info, "translation");
 }
 
-void GateFluenceActor::InitializeCpp() {
+void GateFluenceActor::InitializeCpp()
+{
   GateVActor::InitializeCpp();
 
   // Create the image pointer
@@ -43,21 +45,24 @@ void GateFluenceActor::InitializeCpp() {
   cpp_fluence_image = Image3DType::New();
 }
 
-void GateFluenceActor::BeginOfEventAction(const G4Event *event) {
+void GateFluenceActor::BeginOfEventAction(const G4Event *event)
+{
   G4AutoLock mutex(&SetNbEventMutexFluence);
   NbOfEvent++;
 }
 
-void GateFluenceActor::BeginOfRunActionMasterThread(int run_id) {
+void GateFluenceActor::BeginOfRunActionMasterThread(int run_id)
+{
   // Important ! The volume may have moved, so we (re-)attach each run
-  AttachImageToVolume<Image3DType>(cpp_fluence_image, fPhysicalVolumeName,
-                                   fTranslation);
+  AttachImageToVolume<Image3DType>(cpp_fluence_image, fPhysicalVolumeName, fTranslation);
   NbOfEvent = 0;
 }
 
-void GateFluenceActor::SteppingAction(G4Step *step) {
+void GateFluenceActor::SteppingAction(G4Step *step)
+{
   // same method to consider only entering tracks
-  if (step->GetPreStepPoint()->GetStepStatus() == fGeomBoundary) {
+  if (step->GetPreStepPoint()->GetStepStatus() == fGeomBoundary)
+  {
     // the pre-position is at the edge
     auto preGlobal = step->GetPreStepPoint()->GetPosition();
     auto dir = step->GetPreStepPoint()->GetMomentumDirection();
@@ -66,8 +71,7 @@ void GateFluenceActor::SteppingAction(G4Step *step) {
     // consider position in the local volume, slightly shifted by 0.1 nm because
     // otherwise, it can be considered as outside the volume by isInside.
     auto position = preGlobal + 0.1 * CLHEP::nm * dir;
-    auto localPosition =
-        touchable->GetHistory()->GetTransform(0).TransformPoint(position);
+    auto localPosition = touchable->GetHistory()->GetTransform(0).TransformPoint(position);
 
     // convert G4ThreeVector to itk PointType
     Image3DType::PointType point;
@@ -80,11 +84,11 @@ void GateFluenceActor::SteppingAction(G4Step *step) {
 
     // get pixel index
     Image3DType::IndexType index;
-    bool isInside =
-        cpp_fluence_image->TransformPhysicalPointToIndex(point, index);
+    bool isInside = cpp_fluence_image->TransformPhysicalPointToIndex(point, index);
 
     // set value
-    if (isInside) {
+    if (isInside)
+    {
       G4AutoLock FluenceMutex(&SetPixelFluenceMutex);
       ImageAddValue<Image3DType>(cpp_fluence_image, index, w);
     } // else : outside the image
