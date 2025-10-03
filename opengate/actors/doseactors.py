@@ -720,6 +720,7 @@ class TLEDoseActor(DoseActor, g4.GateTLEDoseActor):
                 "BeginOfEventAction",
                 "SteppingAction",
                 "PreUserTrackingAction",
+                "EndOfRunAction",
             }
         )
 
@@ -1314,6 +1315,7 @@ class RBEActor(BeamQualityActor, g4.GateBeamQualityActor):
         - LEM1lda:
             - alpha mix (score separately numerator and denominator)
             - beta mix (score separately numerator and denominator)
+
         Note: all will also score edep as denominator image -> retrieve dose
     """
 
