@@ -370,6 +370,7 @@ void init_GateAttributeComparisonFilter(py::module &);
 
 // Gate actors
 void init_GateDoseActor(py::module &m);
+void init_GateClusterDoseActor(py::module &m);
 
 void init_GateVoxelizedPromptGammaTLEActor(py::module &m);
 
@@ -744,6 +745,7 @@ PYBIND11_MODULE(opengate_core, m) {
   init_GateProcessDefinedStepInVolumeAttribute(m);
 
   init_GateDoseActor(m);
+  init_GateClusterDoseActor(m);
   init_GateTLEDoseActor(m);
   init_GateVoxelizedPromptGammaTLEActor(m);
   init_GateVoxelizedPromptGammaAnalogActor(m);
