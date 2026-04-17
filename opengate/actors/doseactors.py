@@ -2238,9 +2238,7 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
         VoxelDepositActor.initialize(self)
 
         self.raw_database_data = self.load_database()
-        self.processed_database_data = self.preprocess_database(
-            self.raw_database_data
-        )
+        self.processed_database_data = self.preprocess_database(self.raw_database_data)
 
         self.InitializeUserInfo(self.user_info)
         self.SetPhysicalVolumeName(self.get_physical_volume_name())
@@ -2278,9 +2276,7 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
         energies = np.ascontiguousarray(raw_database_data["energy"], dtype=np.float64)
         values = np.ascontiguousarray(raw_database_data["values"], dtype=np.float64)
 
-        self._validate_database_arrays(
-            energies, values, label="preprocessed database"
-        )
+        self._validate_database_arrays(energies, values, label="preprocessed database")
         self.generated_processed_database_path = self._write_generated_database_file(
             energies,
             values,
@@ -2351,9 +2347,7 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
         self.SetClusterDatabaseEnergyGrid(
             self.processed_database_data["energy"].tolist()
         )
-        self.SetClusterDatabaseValues(
-            self.processed_database_data["values"].tolist()
-        )
+        self.SetClusterDatabaseValues(self.processed_database_data["values"].tolist())
 
     def BeginOfRunActionMasterThread(self, run_index):
         self.prepare_output_for_run("cluster_dose", run_index, pixel_type="double")
@@ -2381,7 +2375,8 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
             database_source=self.database_source,
             database_file=(
                 str(self.database_file)
-                if self.database_source == "file" and self.database_file not in (None, "")
+                if self.database_source == "file"
+                and self.database_file not in (None, "")
                 else None
             ),
             generated_raw_database_file=(
