@@ -1171,7 +1171,7 @@ class BeamQualityActor(VoxelDepositActor, g4.GateBeamQualityActor):
         self.ZMaxTable = max(fragments)
         if len(v_table) != 3 * len(fragments):
             raise ValueError(
-                f"Error: {len(v_table) = } and {len(fragments) = } are not equal."
+                f"Error: {len(v_table)=} and {len(fragments)=} are not equal."
             )
         if self.energy_per_nucleon:
             for i in range(1, len(v_table), 3):
@@ -2168,12 +2168,21 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
                 "doc": "Ionization parameter associated with the database scored by this actor.",
             },
         ),
-        "database_file": (
-            "",
-            {
-                "doc": "Path to a file containing the database used by this actor.",
-            },
-        ),
+        # # Optional: TBD
+        # "database_file": (
+        #     "",
+        #     {
+        #         "doc": "Path to a file containing the database used by this actor.",
+        #     },
+        # ),
+        # # Optional: TBD
+        # "database": (
+        #     None,
+        #     {
+        #         "doc": "2D database array with two columns energy and ionisation parameter.",
+        #     },
+        # ),
+        # # TODO: TBD how to add one database for one particle. The databases can have different size and energies.
         "database_energy": (
             None,
             {
@@ -2189,18 +2198,25 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
     }
 
     user_output_config = {
-        "cluster_dose": {
+        # TODO: we need to define custom data container to hold the data scored.
+        "ionisation_detail": {
             "actor_output_class": ActorOutputQuotientMeanImage,
             "interfaces": {
-                "cluster_dose_numerator": {
+                "ionisation_detail_numerator": {
                     "interface_class": UserInterfaceToActorOutputImage,
                     "item": 0,
                     "active": True,
                     "write_to_disk": False,
                 },
-                "cluster_dose_denominator": {
+                "ionisation_detail_denominator": {
                     "interface_class": UserInterfaceToActorOutputImage,
                     "item": 1,
+                    "active": True,
+                    "write_to_disk": False,
+                },
+                "ionisation_detail_quotient": {
+                    "interface_class": UserInterfaceToActorOutputImage,
+                    "item": "quotient",
                     "active": True,
                     "write_to_disk": False,
                 },
@@ -2210,6 +2226,7 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
                     "active": True,
                     "write_to_disk": True,
                 },
+
             },
         },
     }
@@ -2238,6 +2255,9 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
         VoxelDepositActor.initialize(self)
 
         self.raw_database_data = self.load_database()
+        # TODO: do the validation of the imput database
+        # TODO: preprocess the database (e.g. calculate the cumulative distrubution). Do this in CPP, get the poreprocessed data after the simulation.
+        # TODO: jgajewski: prepare a descripotion of the preprocessing needed to prepare the database for scoring.
         self.processed_database_data = self.preprocess_database(self.raw_database_data)
 
         self.InitializeUserInfo(self.user_info)
