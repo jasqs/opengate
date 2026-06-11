@@ -79,6 +79,8 @@ void GateClusterDoseActor::BeginOfRunAction(const G4Run * /*run*/) {
   l.clampBelowRangeCount = 0;
   l.clampAboveRangeCount = 0;
 
+  // The Python side pushes LUTs keyed by particle name. Each worker thread
+  // resolves these names to G4ParticleDefinition* once at run start.
   auto *particleTable = G4ParticleTable::GetParticleTable();
   for (const auto &[particleName, lut] : fIonisationDetailLUTByParticleName) {
     const auto *particleDefinition = particleTable->FindParticle(particleName);
@@ -90,6 +92,7 @@ void GateClusterDoseActor::BeginOfRunAction(const G4Run * /*run*/) {
 
 void GateClusterDoseActor::EndOfRunAction(const G4Run * /*run*/) {
   auto &l = fThreadLocalData.Get();
+  // Clamp diagnostics are accumulated per worker thread and merged here.
   G4AutoLock mutex(&IonisationDetailCountersMutex);
   fClampBelowRangeCount += l.clampBelowRangeCount;
   fClampAboveRangeCount += l.clampAboveRangeCount;
@@ -168,6 +171,8 @@ void GateClusterDoseActor::SteppingAction(G4Step *step) {
       step->GetPostStepPoint()->GetKineticEnergy() / CLHEP::MeV;
   (void)fIonizationParameter;
 
+  // The scored quantity for one step is the difference of the processed
+  // ionisation-detail LUT evaluated at the pre- and post-step energies.
   const auto preValue =
       InterpolateIonisationDetailValue(*lutIt->second, preEnergy);
   const auto postValue =
@@ -184,6 +189,8 @@ void GateClusterDoseActor::SteppingAction(G4Step *step) {
     return;
   }
 
+  // The actor output is a quotient image: numerator stores the scored value,
+  // denominator stores the number of contributing steps.
   G4AutoLock mutex(&SetPixelIonisationDetailMutex);
   ImageAddValue<Image3DType>(cpp_numerator_image, index, value);
   ImageAddValue<Image3DType>(cpp_denominator_image, index, 1.0);

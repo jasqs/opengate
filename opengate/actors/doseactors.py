@@ -2212,6 +2212,8 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
 
     def __init__(self, *args, **kwargs):
         VoxelDepositActor.__init__(self, *args, **kwargs)
+        # 'database' is a read-only user info from the outside. We still keep a
+        # mutable Box internally so add_database() can populate it incrementally.
         if self.user_info.database is None:
             self.user_info.database = Box()
         self.processed_lut_data = {}
@@ -2232,6 +2234,8 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
         self.check_user_input()
         VoxelDepositActor.initialize(self)
 
+        # The Python side owns LUT preparation. C++ only receives the processed
+        # per-particle energy/value grids used during stepping.
         self._validate_database_configuration()
         self.processed_lut_data = self.prepare_lut()
 
@@ -2334,6 +2338,7 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
             fatal(
                 f"ClusterDoseActor '{self.name}' has no processed ionisation-detail LUT to push to C++."
             )
+        # Keep the C++ actor in sync with the current Python-side database state.
         self.ClearProcessedLUTs()
         for particle_name, processed_lut in self.processed_lut_data.items():
             self.AddProcessedLUT(
@@ -2363,6 +2368,8 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
             self.cpp_denominator_image,
         )
         self._update_output_coordinate_system("ionisation_detail", run_index)
+        # The quotient output is reconstructed from the two C++ images. We also
+        # store clamp diagnostics to help detect LUT coverage issues.
         self.user_output.ionisation_detail.store_meta_data(
             run_index,
             number_of_samples=self.NbOfEvent,

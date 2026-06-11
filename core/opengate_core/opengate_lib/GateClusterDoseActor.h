@@ -57,6 +57,8 @@ public:
   long fClampAboveRangeCount = 0;
 
 private:
+  // One processed LUT per particle. The values are prepared on the Python side
+  // and treated as immutable once pushed to C++.
   struct IonisationDetailLUT {
     std::vector<double> energy;
     std::vector<double> values;
@@ -69,6 +71,8 @@ private:
   };
 
   struct threadLocalT {
+    // Resolve particle-name keyed LUTs once per worker thread so SteppingAction
+    // can use direct particle-definition lookup.
     std::unordered_map<const G4ParticleDefinition *,
                        const IonisationDetailLUT *>
         ionisationDetailLUTByParticleDef;
