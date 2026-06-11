@@ -41,11 +41,13 @@ void init_GateClusterDoseActor(py::module &m) {
            &GateClusterDoseActor::GetPhysicalVolumeName)
       .def("SetPhysicalVolumeName",
            &GateClusterDoseActor::SetPhysicalVolumeName)
-      .def("SetClusterDatabaseEnergyGrid",
-           &GateClusterDoseActor::SetClusterDatabaseEnergyGrid)
-      .def("SetClusterDatabaseValues",
-           &GateClusterDoseActor::SetClusterDatabaseValues)
+      .def("ClearProcessedLUTs", &GateClusterDoseActor::ClearProcessedLUTs)
+      .def("AddProcessedLUT", &GateClusterDoseActor::AddProcessedLUT)
       .def_readwrite("NbOfEvent", &GateClusterDoseActor::NbOfEvent)
+      .def_readwrite("fClampBelowRangeCount",
+                     &GateClusterDoseActor::fClampBelowRangeCount)
+      .def_readwrite("fClampAboveRangeCount",
+                     &GateClusterDoseActor::fClampAboveRangeCount)
       .def_readwrite("cpp_numerator_image",
                      &GateClusterDoseActor::cpp_numerator_image)
       .def_readwrite("cpp_denominator_image",
