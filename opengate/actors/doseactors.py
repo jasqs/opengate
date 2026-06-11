@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+from box import Box
 from scipy.spatial.transform import Rotation
 from pathlib import Path
 
@@ -2154,12 +2155,10 @@ class FluenceActor(VoxelDepositActor, g4.GateFluenceActor):
 
 
 class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
-    """Scores a voxelized map of cluster-dose values."""
+    """Scores a voxelized map of ionisation-detail values."""
 
     ionization_parameter: str
-    database_file: str
-    database_energy: list
-    database_values: list
+    database: Box
 
     user_info_defaults = {
         "ionization_parameter": (
@@ -2168,31 +2167,11 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
                 "doc": "Ionization parameter associated with the database scored by this actor.",
             },
         ),
-        # # Optional: TBD
-        # "database_file": (
-        #     "",
-        #     {
-        #         "doc": "Path to a file containing the database used by this actor.",
-        #     },
-        # ),
-        # # Optional: TBD
-        # "database": (
-        #     None,
-        #     {
-        #         "doc": "2D database array with two columns energy and ionisation parameter.",
-        #     },
-        # ),
-        # # TODO: TBD how to add one database for one particle. The databases can have different size and energies.
-        "database_energy": (
+        "database": (
             None,
             {
-                "doc": "Optional direct array input for the database energy grid.",
-            },
-        ),
-        "database_values": (
-            None,
-            {
-                "doc": "Optional direct array input for the database values.",
+                "doc": "Particle-keyed ionisation-detail databases. Populate via add_database().",
+                "read_only": True,
             },
         ),
     }
@@ -2220,7 +2199,7 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
                     "active": True,
                     "write_to_disk": False,
                 },
-                "cluster_dose": {
+                "ionisation_detail": {
                     "interface_class": UserInterfaceToActorOutputImage,
                     "item": "quotient",
                     "active": True,
@@ -2233,11 +2212,10 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
 
     def __init__(self, *args, **kwargs):
         VoxelDepositActor.__init__(self, *args, **kwargs)
-        self.raw_database_data = None
-        self.processed_database_data = None
-        self.database_source = None
-        self.generated_raw_database_path = None
-        self.generated_processed_database_path = None
+        if self.user_info.database is None:
+            self.user_info.database = Box()
+        self.processed_lut_data = {}
+        self.generated_processed_database_paths = {}
         self.__initcpp__()
 
     def __initcpp__(self):
@@ -2254,22 +2232,23 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
         self.check_user_input()
         VoxelDepositActor.initialize(self)
 
-        self.raw_database_data = self.load_database()
-        # TODO: do the validation of the imput database
-        # TODO: preprocess the database (e.g. calculate the cumulative distrubution). Do this in CPP, get the poreprocessed data after the simulation.
-        # TODO: jgajewski: prepare a descripotion of the preprocessing needed to prepare the database for scoring.
-        self.processed_database_data = self.preprocess_database(self.raw_database_data)
+        self._validate_database_configuration()
+        self.processed_lut_data = self.prepare_lut()
 
         self.InitializeUserInfo(self.user_info)
         self.SetPhysicalVolumeName(self.get_physical_volume_name())
         self.InitializeCpp()
-        self.push_database_to_cpp()
+        self.push_processed_lut_to_cpp()
 
     def _write_generated_database_file(self, energies, values, stem):
         filename = f"{self.name}_{stem}.txt"
         output_path = self.simulation.get_output_path(filename)
         np.savetxt(output_path, np.column_stack((energies, values)))
         return output_path
+
+    def _make_database_stem(self, prefix, particle_name):
+        particle_label = str(particle_name).replace(os.sep, "_").replace(" ", "_")
+        return f"{prefix}_{particle_label}_{self.ionization_parameter}"
 
     def _validate_database_arrays(self, energies, values, label="database"):
         if energies.ndim != 1 or values.ndim != 1:
@@ -2292,124 +2271,117 @@ class ClusterDoseActor(VoxelDepositActor, g4.GateClusterDoseActor):
                 f"{label} to be sorted in ascending order."
             )
 
-    def preprocess_database(self, raw_database_data):
-        energies = np.ascontiguousarray(raw_database_data["energy"], dtype=np.float64)
-        values = np.ascontiguousarray(raw_database_data["values"], dtype=np.float64)
+    def _validate_database_configuration(self):
+        if self.database is None or len(self.database) == 0:
+            fatal(
+                f"ClusterDoseActor '{self.name}' requires at least one database. "
+                "Populate the read-only 'database' user info via add_database(...)."
+            )
 
-        self._validate_database_arrays(energies, values, label="preprocessed database")
-        self.generated_processed_database_path = self._write_generated_database_file(
+    def add_database(self, particle, energies, values):
+        particle_name = str(particle)
+        energies = np.ascontiguousarray(energies, dtype=np.float64)
+        values = np.ascontiguousarray(values, dtype=np.float64)
+        self._validate_database_arrays(
+            energies, values, label=f"database for particle '{particle_name}'"
+        )
+        if particle_name in self.user_info.database:
+            self.warn_user(
+                f"ClusterDoseActor '{self.name}' is replacing the database for "
+                f"particle '{particle_name}'."
+            )
+        self.user_info.database[particle_name] = Box(
+            {"energy": energies, "values": values}
+        )
+
+    def preprocess_database(self, particle_database, particle_name):
+        energies = np.ascontiguousarray(
+            particle_database.energy, dtype=np.float64
+        )
+        values = np.ascontiguousarray(
+            particle_database.values, dtype=np.float64
+        )
+
+        self._validate_database_arrays(
             energies,
             values,
-            f"processed_database_{self.ionization_parameter}",
+            label=f"preprocessed database for particle '{particle_name}'",
         )
-
-        return {
-            "energy": energies,
-            "values": values,
-        }
-
-    def load_database(self):
-        has_database_file = self.database_file not in (None, "")
-        has_database_arrays = (
-            self.database_energy is not None or self.database_values is not None
-        )
-
-        if has_database_file and has_database_arrays:
-            fatal(
-                f"ClusterDoseActor '{self.name}' received both 'database_file' and "
-                f"'database_energy'/'database_values'. Please provide only one database input mode."
-            )
-        if not has_database_file and not has_database_arrays:
-            fatal(
-                f"ClusterDoseActor '{self.name}' requires a non-empty "
-                f"'database_file' input or both 'database_energy' and 'database_values'."
-            )
-
-        if has_database_file:
-            data = np.loadtxt(self.database_file)
-            data = np.asarray(data, dtype=float)
-            if data.ndim != 2 or data.shape[1] < 2:
-                fatal(
-                    f"ClusterDoseActor '{self.name}' expects 'database_file' to be "
-                    "parseable into a 2D array with at least two columns: energy and value."
-                )
-            energies = np.ascontiguousarray(data[:, 0], dtype=np.float64)
-            values = np.ascontiguousarray(data[:, 1], dtype=np.float64)
-            self.database_source = "file"
-            self.generated_raw_database_path = None
-        else:
-            if self.database_energy is None or self.database_values is None:
-                fatal(
-                    f"ClusterDoseActor '{self.name}' requires both 'database_energy' "
-                    f"and 'database_values' when using array input mode."
-                )
-            energies = np.ascontiguousarray(self.database_energy, dtype=np.float64)
-            values = np.ascontiguousarray(self.database_values, dtype=np.float64)
-            self.database_source = "arrays"
-            self.generated_raw_database_path = self._write_generated_database_file(
+        self.generated_processed_database_paths[particle_name] = (
+            self._write_generated_database_file(
                 energies,
                 values,
-                f"raw_database_{self.ionization_parameter}",
+                self._make_database_stem("processed_database", particle_name),
             )
-
-        self._validate_database_arrays(energies, values, label="raw database")
+        )
 
         return {
             "energy": energies,
             "values": values,
         }
 
-    def push_database_to_cpp(self):
-        if self.processed_database_data is None:
-            fatal(
-                f"ClusterDoseActor '{self.name}' has no processed database to push to C++."
+    def prepare_lut(self):
+        self.generated_processed_database_paths = {}
+        processed_lut_data = {}
+        for particle_name, particle_database in self.database.items():
+            processed_lut_data[particle_name] = self.preprocess_database(
+                particle_database, particle_name
             )
-        self.SetClusterDatabaseEnergyGrid(
-            self.processed_database_data["energy"].tolist()
-        )
-        self.SetClusterDatabaseValues(self.processed_database_data["values"].tolist())
+        return processed_lut_data
+
+    def push_processed_lut_to_cpp(self):
+        if not self.processed_lut_data:
+            fatal(
+                f"ClusterDoseActor '{self.name}' has no processed ionisation-detail LUT to push to C++."
+            )
+        self.ClearProcessedLUTs()
+        for particle_name, processed_lut in self.processed_lut_data.items():
+            self.AddProcessedLUT(
+                particle_name,
+                processed_lut["energy"].tolist(),
+                processed_lut["values"].tolist(),
+            )
 
     def BeginOfRunActionMasterThread(self, run_index):
-        self.prepare_output_for_run("cluster_dose", run_index, pixel_type="double")
+        self.prepare_output_for_run(
+            "ionisation_detail", run_index, pixel_type="double"
+        )
         self.push_to_cpp_image(
-            "cluster_dose",
+            "ionisation_detail",
             run_index,
             self.cpp_numerator_image,
             self.cpp_denominator_image,
         )
-        self.push_database_to_cpp()
+        self.push_processed_lut_to_cpp()
         g4.GateClusterDoseActor.BeginOfRunActionMasterThread(self, run_index)
 
     def EndOfRunActionMasterThread(self, run_index):
         self.fetch_from_cpp_image(
-            "cluster_dose",
+            "ionisation_detail",
             run_index,
             self.cpp_numerator_image,
             self.cpp_denominator_image,
         )
-        self._update_output_coordinate_system("cluster_dose", run_index)
-        self.user_output.cluster_dose.store_meta_data(
+        self._update_output_coordinate_system("ionisation_detail", run_index)
+        self.user_output.ionisation_detail.store_meta_data(
             run_index,
             number_of_samples=self.NbOfEvent,
             ionization_parameter=self.ionization_parameter,
-            database_source=self.database_source,
-            database_file=(
-                str(self.database_file)
-                if self.database_source == "file"
-                and self.database_file not in (None, "")
-                else None
-            ),
-            generated_raw_database_file=(
-                str(self.generated_raw_database_path)
-                if self.generated_raw_database_path is not None
-                else None
-            ),
-            generated_processed_database_file=(
-                str(self.generated_processed_database_path)
-                if self.generated_processed_database_path is not None
-                else None
-            ),
+            particles=sorted(self.database.keys()),
+            generated_processed_database_files={
+                k: str(v) for k, v in self.generated_processed_database_paths.items()
+            },
+            clamp_below_range_count=self.fClampBelowRangeCount,
+            clamp_above_range_count=self.fClampAboveRangeCount,
         )
+        total_clamp_count = self.fClampBelowRangeCount + self.fClampAboveRangeCount
+        if total_clamp_count > 0:
+            self.warn_user(
+                f"ClusterDoseActor '{self.name}' clamped ionisation-detail LUT interpolation "
+                f"{total_clamp_count} time(s) during run {run_index} "
+                f"(below range: {self.fClampBelowRangeCount}, "
+                f"above range: {self.fClampAboveRangeCount})."
+            )
         VoxelDepositActor.EndOfRunActionMasterThread(self, run_index)
         return 0
 

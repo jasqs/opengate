@@ -44,33 +44,29 @@ if __name__ == "__main__":
 
     database_energy = np.array([0.0, 5.0, 10.0, 20.0, 30.0])
     database_values = np.array([0.0, 2.5, 5.0, 10.0, 15.0])
-    database = np.column_stack((database_energy, database_values))
-    database_path = paths.output / "ionization_parameter_database_reference.txt"
-    np.savetxt(database_path, database)
 
     actor = sim.add_actor("ClusterDoseActor", "cluster_dose_actor")
     actor.attached_to = phantom.name
     actor.size = [20, 20, 20]
     actor.spacing = [5 * mm, 5 * mm, 5 * mm]
     actor.ionization_parameter = "cluster_size_2"
-    actor.database_energy = database_energy
-    actor.database_values = database_values
+    actor.add_database("proton", database_energy, database_values)
     actor.hit_type = "random"
 
     stats = sim.add_actor("SimulationStatisticsActor", "stats")
 
     sim.run(start_new_process=True)
 
-    image = actor.cluster_dose.image
-    numerator = actor.cluster_dose_numerator.image
-    denominator = actor.cluster_dose_denominator.image
+    image = actor.ionisation_detail.image
+    numerator = actor.ionisation_detail_numerator.image
+    denominator = actor.ionisation_detail_denominator.image
     array = itk.array_view_from_image(image)
     numerator_array = itk.array_view_from_image(numerator)
     denominator_array = itk.array_view_from_image(denominator)
 
     print(stats)
     print(actor)
-    print(f"Cluster dose sum: {np.sum(array)}")
+    print(f"Ionisation detail sum: {np.sum(array)}")
 
     is_ok = True
     is_ok = is_ok and image is not None
@@ -82,17 +78,11 @@ if __name__ == "__main__":
     is_ok = is_ok and np.sum(numerator_array) > 0
     is_ok = is_ok and np.sum(denominator_array) > 0
     is_ok = is_ok and np.max(array) > 0
-    generated_raw_database_file = actor.user_output.cluster_dose.merged_data.meta_data[
-        "generated_raw_database_file"
-    ]
-    generated_processed_database_file = (
-        actor.user_output.cluster_dose.merged_data.meta_data[
-            "generated_processed_database_file"
-        ]
-    )
-    is_ok = is_ok and generated_raw_database_file is not None
-    is_ok = is_ok and Path(generated_raw_database_file).exists()
-    is_ok = is_ok and generated_processed_database_file is not None
-    is_ok = is_ok and Path(generated_processed_database_file).exists()
+    meta = actor.user_output.ionisation_detail.merged_data.meta_data
+    generated_processed_database_files = meta["generated_processed_database_files"]
+    is_ok = is_ok and "proton" in generated_processed_database_files
+    is_ok = is_ok and Path(generated_processed_database_files["proton"]).exists()
+    is_ok = is_ok and meta["clamp_below_range_count"] >= 0
+    is_ok = is_ok and meta["clamp_above_range_count"] >= 0
 
     utility.test_ok(is_ok)
